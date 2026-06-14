@@ -10,6 +10,7 @@ import os
 from .config import get_config
 from .utils import safe_ticker_component
 from .symbol_utils import normalize_symbol, NoMarketDataError
+from . import akshare_stock
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,52 @@ def _clean_dataframe(data: pd.DataFrame) -> pd.DataFrame:
     return data
 
 
-def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
+def _configured_ohlcv_vendors(data_vendor: str | None = None) -> list[str]:
+    if data_vendor:
+        return [data_vendor]
+
+    config = get_config()
+    vendor_config = config.get("tool_vendors", {}).get(
+        "get_indicators",
+        config.get("data_vendors", {}).get("technical_indicators", "yfinance"),
+    )
+    vendors = [v.strip() for v in vendor_config.split(",") if v.strip()]
+    if "yfinance" not in vendors:
+        vendors.append("yfinance")
+    return vendors
+
+
+def _download_yfinance_ohlcv(canonical: str, start_str: str, end_str: str) -> pd.DataFrame:
+    downloaded = yf_retry(lambda: yf.download(
+        canonical,
+        start=start_str,
+        end=end_str,
+        multi_level_index=False,
+        progress=False,
+        auto_adjust=True,
+    ))
+    return _ensure_date_column(downloaded.reset_index())
+
+
+def _download_ohlcv(
+    vendor: str,
+    symbol: str,
+    canonical: str,
+    start_str: str,
+    end_str: str,
+) -> pd.DataFrame:
+    if vendor == "akshare":
+        return akshare_stock.load_ohlcv(symbol, start_str, end_str)
+    if vendor == "yfinance":
+        return _download_yfinance_ohlcv(canonical, start_str, end_str)
+    raise ValueError(f"Unsupported OHLCV vendor for stockstats: {vendor}")
+
+
+def load_ohlcv(
+    symbol: str,
+    curr_date: str,
+    data_vendor: str | None = None,
+) -> pd.DataFrame:
     """Fetch OHLCV data with caching, filtered to prevent look-ahead bias.
 
     Downloads 15 years of data up to today and caches per symbol. On
@@ -85,37 +131,46 @@ def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
     end_str = today_date.strftime("%Y-%m-%d")
 
     os.makedirs(config["data_cache_dir"], exist_ok=True)
-    data_file = os.path.join(
-        config["data_cache_dir"],
-        f"{safe_symbol}-YFin-data-{start_str}-{end_str}.csv",
-    )
-
-    # A cached file may be empty if a prior fetch failed (unknown symbol,
-    # transient rate limit). Treat an empty/columnless cache as a miss and
-    # re-fetch rather than serving the poisoned file forever.
     data = None
-    if os.path.exists(data_file):
-        cached = pd.read_csv(data_file, on_bad_lines="skip", encoding="utf-8")
-        if not cached.empty and "Close" in cached.columns:
-            data = cached
+    last_no_data: NoMarketDataError | None = None
+    first_error: Exception | None = None
+
+    for vendor in _configured_ohlcv_vendors(data_vendor):
+        if vendor not in {"akshare", "yfinance"}:
+            continue
+
+        data_file = os.path.join(
+            config["data_cache_dir"],
+            f"{safe_symbol}-{vendor}-data-{start_str}-{end_str}.csv",
+        )
+
+        if os.path.exists(data_file):
+            cached = pd.read_csv(data_file, on_bad_lines="skip", encoding="utf-8")
+            if not cached.empty and "Close" in cached.columns:
+                data = cached
+                break
+
+        try:
+            downloaded = _download_ohlcv(vendor, symbol, canonical, start_str, end_str)
+            if downloaded.empty or "Close" not in downloaded.columns:
+                raise NoMarketDataError(
+                    symbol, canonical, f"{vendor} returned no rows"
+                )
+            downloaded.to_csv(data_file, index=False, encoding="utf-8")
+            data = downloaded
+            break
+        except NoMarketDataError as e:
+            last_no_data = e
+        except Exception as e:
+            if first_error is None:
+                first_error = e
 
     if data is None:
-        downloaded = yf_retry(lambda: yf.download(
-            canonical,
-            start=start_str,
-            end=end_str,
-            multi_level_index=False,
-            progress=False,
-            auto_adjust=True,
-        ))
-        downloaded = _ensure_date_column(downloaded.reset_index())
-        # Only cache real data — never persist an empty frame.
-        if downloaded.empty or "Close" not in downloaded.columns:
-            raise NoMarketDataError(
-                symbol, canonical, "Yahoo Finance returned no rows"
-            )
-        downloaded.to_csv(data_file, index=False, encoding="utf-8")
-        data = downloaded
+        if last_no_data is not None:
+            raise last_no_data
+        if first_error is not None:
+            raise first_error
+        raise RuntimeError("No supported OHLCV vendor configured")
 
     data = _clean_dataframe(data)
 
@@ -149,8 +204,9 @@ class StockstatsUtils:
         curr_date: Annotated[
             str, "curr date for retrieving stock price data, YYYY-mm-dd"
         ],
+        data_vendor: str | None = None,
     ):
-        data = load_ohlcv(symbol, curr_date)
+        data = load_ohlcv(symbol, curr_date, data_vendor=data_vendor)
         df = wrap(data)
         df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
         curr_date_str = pd.to_datetime(curr_date).strftime("%Y-%m-%d")

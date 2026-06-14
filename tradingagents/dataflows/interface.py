@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Annotated
 
 # Import from vendor-specific modules
@@ -11,6 +12,7 @@ from .y_finance import (
     get_insider_transactions as get_yfinance_insider_transactions,
 )
 from .yfinance_news import get_news_yfinance, get_global_news_yfinance
+from .akshare_stock import get_stock_data as get_akshare_stock_data
 from .alpha_vantage import (
     get_stock as get_alpha_vantage_stock,
     get_indicator as get_alpha_vantage_indicator,
@@ -62,6 +64,7 @@ TOOLS_CATEGORIES = {
 }
 
 VENDOR_LIST = [
+    "akshare",
     "yfinance",
     "alpha_vantage",
 ]
@@ -70,13 +73,15 @@ VENDOR_LIST = [
 VENDOR_METHODS = {
     # core_stock_apis
     "get_stock_data": {
+        "akshare": get_akshare_stock_data,
         "alpha_vantage": get_alpha_vantage_stock,
         "yfinance": get_YFin_data_online,
     },
     # technical_indicators
     "get_indicators": {
+        "akshare": partial(get_stock_stats_indicators_window, data_vendor="akshare"),
         "alpha_vantage": get_alpha_vantage_indicator,
-        "yfinance": get_stock_stats_indicators_window,
+        "yfinance": partial(get_stock_stats_indicators_window, data_vendor="yfinance"),
     },
     # fundamental_data
     "get_fundamentals": {

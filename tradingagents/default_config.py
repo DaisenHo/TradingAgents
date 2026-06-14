@@ -99,8 +99,8 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
-        "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
-        "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
+        "core_stock_apis": "akshare,yfinance",       # Options: akshare, alpha_vantage, yfinance
+        "technical_indicators": "akshare,yfinance",  # Options: akshare, alpha_vantage, yfinance
         "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
         "news_data": "yfinance",             # Options: alpha_vantage, yfinance
     },

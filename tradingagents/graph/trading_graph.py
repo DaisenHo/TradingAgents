@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, Tuple, List, Optional
 
-import yfinance as yf
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ from tradingagents.agents.utils.agent_states import (
     RiskDebateState,
 )
 from tradingagents.dataflows.config import set_config
+from tradingagents.dataflows.stockstats_utils import load_ohlcv
 
 # Import the new abstract tool methods from agent_utils
 from tradingagents.agents.utils.agent_utils import (
@@ -237,8 +238,11 @@ class TradingAgentsGraph:
             end = start + timedelta(days=holding_days + 7)  # buffer for weekends/holidays
             end_str = end.strftime("%Y-%m-%d")
 
-            stock = yf.Ticker(ticker).history(start=trade_date, end=end_str)
-            bench = yf.Ticker(benchmark).history(start=trade_date, end=end_str)
+            stock = load_ohlcv(ticker, end_str)
+            bench = load_ohlcv(benchmark, end_str)
+            start_ts = pd.Timestamp(trade_date)
+            stock = stock[pd.to_datetime(stock["Date"]) >= start_ts]
+            bench = bench[pd.to_datetime(bench["Date"]) >= start_ts]
 
             if len(stock) < 2 or len(bench) < 2:
                 return None, None, None
