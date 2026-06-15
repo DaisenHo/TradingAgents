@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import builtins
 import copy
-import os
+import sys
 from unittest import mock
 
 import pandas as pd
@@ -164,6 +165,24 @@ class TestAkshareProvider:
 
 @pytest.mark.unit
 class TestAkshareRouting:
+    def test_importing_interface_does_not_import_akshare(self, monkeypatch):
+        sys.modules.pop("tradingagents.dataflows.interface", None)
+        sys.modules.pop("tradingagents.dataflows.akshare_stock", None)
+        sys.modules.pop("akshare", None)
+
+        real_import = builtins.__import__
+
+        def reject_akshare_import(name, *args, **kwargs):
+            if name == "akshare":
+                raise AssertionError("akshare should be imported lazily")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", reject_akshare_import)
+
+        from tradingagents.dataflows import interface
+
+        assert "akshare" in interface.VENDOR_METHODS["get_stock_data"]
+
     def test_route_to_vendor_falls_back_from_akshare_to_yfinance(self):
         from tradingagents.dataflows import interface
 

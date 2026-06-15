@@ -1,33 +1,42 @@
 from __future__ import annotations
 
 from datetime import datetime
+from types import ModuleType
 from typing import Annotated
 
 import pandas as pd
 
 from .symbol_utils import NoMarketDataError
 
-
-class _MissingAkshare:
-    def _raise(self, *args, **kwargs):
-        raise ImportError(
-            "akshare is not installed. Install the project dependencies or "
-            "remove 'akshare' from the configured data vendor chain."
-        )
-
-    stock_zh_a_hist = _raise
-    stock_zh_a_daily = _raise
-    stock_hk_daily = _raise
-    stock_hk_hist = _raise
-    stock_us_hist = _raise
-    stock_us_daily = _raise
-    stock_us_spot_em = _raise
+_akshare: ModuleType | None = None
 
 
-try:
-    import akshare as ak
-except ImportError:  # pragma: no cover - exercised only without dependency installed
-    ak = _MissingAkshare()
+def _get_akshare() -> ModuleType:
+    global _akshare
+    if _akshare is None:
+        try:
+            import akshare
+        except ImportError as exc:  # pragma: no cover - only without dependency
+            raise ImportError(
+                "akshare is not installed. Install the project dependencies or "
+                "remove 'akshare' from the configured data vendor chain."
+            ) from exc
+        _akshare = akshare
+    return _akshare
+
+
+class _LazyAkshare:
+    def __getattr__(self, name: str):
+        return getattr(_get_akshare(), name)
+
+    def __setattr__(self, name: str, value):
+        setattr(_get_akshare(), name, value)
+
+    def __delattr__(self, name: str):
+        delattr(_get_akshare(), name)
+
+
+ak = _LazyAkshare()
 
 
 _COLUMN_MAP = {
@@ -90,7 +99,7 @@ def _fetch_a_share_ohlcv(
     end: str,
     adjust: str,
 ) -> pd.DataFrame:
-    return ak.stock_zh_a_daily(
+    return _get_akshare().stock_zh_a_daily(
         symbol=_a_share_exchange_symbol(ak_symbol, label),
         start_date=start,
         end_date=end,
@@ -105,7 +114,7 @@ def _fetch_us_ohlcv(
     end: str,
     adjust: str,
 ) -> pd.DataFrame:
-    return ak.stock_us_daily(symbol=label, adjust=adjust)
+    return _get_akshare().stock_us_daily(symbol=label, adjust=adjust)
 
 
 def _fetch_raw_ohlcv(
@@ -121,7 +130,7 @@ def _fetch_raw_ohlcv(
     if market == "a_share":
         data = _fetch_a_share_ohlcv(ak_symbol, label, start, end, adjust)
     elif market == "hk":
-        data = ak.stock_hk_daily(symbol=ak_symbol, adjust=adjust)
+        data = _get_akshare().stock_hk_daily(symbol=ak_symbol, adjust=adjust)
     else:
         data = _fetch_us_ohlcv(ak_symbol, label, start, end, adjust)
 
