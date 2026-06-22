@@ -151,9 +151,20 @@ export MINIMAX_API_KEY=...         # MiniMax — Global (api.minimax.io, M2.x, 2
 export MINIMAX_CN_API_KEY=...      # MiniMax — China (api.minimaxi.com, M2.x, 204K ctx)
 export OPENROUTER_API_KEY=...      # OpenRouter
 export ALPHA_VANTAGE_API_KEY=...   # Alpha Vantage
+export FUTU_API_KEY=...            # Futu market data; enables Futu-first defaults
+export FUTU_OPEND_HOST=127.0.0.1   # Optional, defaults to localhost
+export FUTU_OPEND_PORT=11111       # Optional, defaults to 11111
 ```
 
 For Azure OpenAI, copy `.env.enterprise.example` to `.env.enterprise` and fill in your credentials.
+
+Futu market data uses Futu OpenD through the `futu-api` Python package
+(`pip install ".[futu]"`). If
+`FUTU_API_KEY`, `FUTU_OPEND_HOST`, or `FUTU_OPEND_PORT` is configured and you do
+not override market-data vendors, TradingAgents prefers
+`futu,akshare,yfinance` for OHLCV price data and technical indicators. The Futu
+order-book integration follows the OpenD `ORDER_BOOK` subscription flow: it
+subscribes first, then reads the latest bid/ask snapshot from OpenD.
 
 For AWS Bedrock, install the extra with `pip install ".[bedrock]"`, set `llm_provider: "bedrock"`, configure AWS credentials (environment variables, `~/.aws/credentials`, or an IAM role) and `AWS_DEFAULT_REGION`, and use a Bedrock model ID, e.g. `us.anthropic.claude-opus-4-8-v1:0`.
 

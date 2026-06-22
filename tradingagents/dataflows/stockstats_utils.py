@@ -8,10 +8,10 @@ import yfinance as yf
 from stockstats import wrap
 from yfinance.exceptions import YFRateLimitError
 
+from . import akshare_stock, futu_stock
 from .config import get_config
 from .symbol_utils import NoMarketDataError, normalize_symbol
 from .utils import safe_ticker_component
-from . import akshare_stock
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +157,8 @@ def _download_ohlcv(
     start_str: str,
     end_str: str,
 ) -> pd.DataFrame:
+    if vendor == "futu":
+        return futu_stock.load_ohlcv(symbol, start_str, end_str)
     if vendor == "akshare":
         return akshare_stock.load_ohlcv(symbol, start_str, end_str)
     if vendor == "yfinance":
@@ -199,7 +201,7 @@ def load_ohlcv(
     first_error: Exception | None = None
 
     for vendor in _configured_ohlcv_vendors(data_vendor):
-        if vendor not in {"akshare", "yfinance"}:
+        if vendor not in {"akshare", "futu", "yfinance"}:
             continue
 
         data_file = os.path.join(

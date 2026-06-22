@@ -1,5 +1,5 @@
-from functools import partial
 import logging
+from functools import partial
 
 from .akshare_stock import get_stock_data as get_akshare_stock_data
 from .alpha_vantage import (
@@ -20,6 +20,7 @@ from .errors import (
     VendorRateLimitError,
 )
 from .fred import get_macro_data as get_fred_macro_data
+from .futu_stock import get_stock_data as get_futu_stock_data
 from .polymarket import get_prediction_markets as get_polymarket_prediction_markets
 from .y_finance import (
     get_balance_sheet as get_yfinance_balance_sheet,
@@ -81,6 +82,7 @@ TOOLS_CATEGORIES = {
 
 VENDOR_LIST = [
     "akshare",
+    "futu",
     "yfinance",
     "fred",
     "polymarket",
@@ -93,12 +95,14 @@ VENDOR_METHODS = {
     "get_stock_data": {
         "akshare": get_akshare_stock_data,
         "alpha_vantage": get_alpha_vantage_stock,
+        "futu": get_futu_stock_data,
         "yfinance": get_YFin_data_online,
     },
     # technical_indicators
     "get_indicators": {
         "akshare": partial(get_stock_stats_indicators_window, data_vendor="akshare"),
         "alpha_vantage": get_alpha_vantage_indicator,
+        "futu": partial(get_stock_stats_indicators_window, data_vendor="futu"),
         "yfinance": partial(get_stock_stats_indicators_window, data_vendor="yfinance"),
     },
     # fundamental_data

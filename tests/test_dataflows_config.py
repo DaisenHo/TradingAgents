@@ -1,6 +1,7 @@
 """Config isolation: get/set must not leak nested-dict references."""
 
 import copy
+import importlib
 import unittest
 
 import pytest
@@ -15,12 +16,13 @@ class DataflowsConfigIsolationTests(unittest.TestCase):
         set_config(copy.deepcopy(default_config.DEFAULT_CONFIG))
 
     def test_get_config_returns_deep_copy(self):
+        expected_core_vendors = default_config.DEFAULT_CONFIG["data_vendors"]["core_stock_apis"]
         cfg = get_config()
         cfg["data_vendors"]["core_stock_apis"] = "alpha_vantage"
         cfg["tool_vendors"]["get_stock_data"] = "alpha_vantage"
 
         fresh = get_config()
-        self.assertEqual(fresh["data_vendors"]["core_stock_apis"], "akshare,yfinance")
+        self.assertEqual(fresh["data_vendors"]["core_stock_apis"], expected_core_vendors)
         self.assertNotIn("get_stock_data", fresh["tool_vendors"])
 
     def test_set_config_does_not_alias_caller_nested_dicts(self):
@@ -38,6 +40,9 @@ class DataflowsConfigIsolationTests(unittest.TestCase):
         self.assertEqual(fresh["tool_vendors"]["get_stock_data"], "alpha_vantage")
 
     def test_partial_nested_update_preserves_existing_defaults(self):
+        expected_indicator_vendors = default_config.DEFAULT_CONFIG["data_vendors"][
+            "technical_indicators"
+        ]
         set_config(
             {
                 "data_vendors": {
@@ -48,7 +53,7 @@ class DataflowsConfigIsolationTests(unittest.TestCase):
 
         fresh = get_config()
         self.assertEqual(fresh["data_vendors"]["core_stock_apis"], "alpha_vantage")
-        self.assertEqual(fresh["data_vendors"]["technical_indicators"], "akshare,yfinance")
+        self.assertEqual(fresh["data_vendors"]["technical_indicators"], expected_indicator_vendors)
         self.assertEqual(fresh["data_vendors"]["fundamental_data"], "yfinance")
         self.assertEqual(fresh["data_vendors"]["news_data"], "yfinance")
 
@@ -59,3 +64,20 @@ class DataflowsConfigIsolationTests(unittest.TestCase):
         fresh = get_config()
         self.assertEqual(fresh["tool_vendors"]["get_stock_data"], "alpha_vantage")
         self.assertEqual(fresh["tool_vendors"]["get_news"], "alpha_vantage")
+
+    def test_default_config_prefers_futu_when_futu_api_key_is_present(self):
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setenv("FUTU_API_KEY", "test-key")
+            reloaded = importlib.reload(default_config)
+
+        try:
+            self.assertEqual(
+                reloaded.DEFAULT_CONFIG["data_vendors"]["core_stock_apis"],
+                "futu,akshare,yfinance",
+            )
+            self.assertEqual(
+                reloaded.DEFAULT_CONFIG["data_vendors"]["technical_indicators"],
+                "futu,akshare,yfinance",
+            )
+        finally:
+            importlib.reload(default_config)

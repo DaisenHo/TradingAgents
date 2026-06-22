@@ -21,6 +21,25 @@ _ENV_OVERRIDES = {
 }
 
 
+def _has_futu_config() -> bool:
+    return any(
+        os.environ.get(key)
+        for key in (
+            "FUTU_API_KEY",
+            "FUTU_OPEND_HOST",
+            "FUTU_OPEND_PORT",
+            "FUTU_HOST",
+            "FUTU_PORT",
+        )
+    )
+
+
+def _default_market_data_vendors() -> str:
+    if _has_futu_config():
+        return "futu,akshare,yfinance"
+    return "akshare,yfinance"
+
+
 def _coerce(value: str, reference):
     """Coerce env-var string to the type of the existing default value."""
     if isinstance(reference, bool):
@@ -102,8 +121,8 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # routed to vendors you didn't choose. For ordered fallback, list several,
     # e.g. "yfinance,alpha_vantage". "default" uses all available vendors.
     "data_vendors": {
-        "core_stock_apis": "akshare,yfinance",       # Options: akshare, alpha_vantage, yfinance
-        "technical_indicators": "akshare,yfinance",  # Options: akshare, alpha_vantage, yfinance
+        "core_stock_apis": _default_market_data_vendors(),       # Options: futu, akshare, alpha_vantage, yfinance
+        "technical_indicators": _default_market_data_vendors(),  # Options: futu, akshare, alpha_vantage, yfinance
         "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
         "news_data": "yfinance",             # Options: alpha_vantage, yfinance
         "macro_data": "fred",                # Options: fred (needs FRED_API_KEY)
