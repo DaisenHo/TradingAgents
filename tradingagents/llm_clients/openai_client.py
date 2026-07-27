@@ -296,6 +296,8 @@ class OpenAIClient(BaseLLMClient):
             if key in self.kwargs:
                 llm_kwargs[key] = self.kwargs[key]
 
+        llm_kwargs["default_headers"] = {"User-Agent": "Mozilla/5.0"}
+
         # The subclass (provider quirks) comes from the registry spec.
         return chat_cls(**llm_kwargs)
 

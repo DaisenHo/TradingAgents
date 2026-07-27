@@ -4,8 +4,6 @@ Verifies the user-supplied base_url is required and honored, the key is optional
 (keyless local default), Chat Completions (not the Responses API) is used, any
 model name is accepted, and the env backend URL precedence (#978).
 """
-import os
-
 import pytest
 
 from tradingagents.llm_clients.api_key_env import get_api_key_env
@@ -44,6 +42,14 @@ def test_keyless_local_uses_placeholder_and_chat_completions(monkeypatch):
     assert key == "EMPTY"
     # must use Chat Completions, not OpenAI's Responses API
     assert getattr(llm, "use_responses_api", False) in (False, None)
+
+
+@pytest.mark.unit
+def test_openai_compatible_client_uses_browser_user_agent():
+    llm = create_llm_client(
+        provider="openai_compatible", model="m", base_url="https://kkcoder.com/v1"
+    ).get_llm()
+    assert llm.default_headers["User-Agent"] == "Mozilla/5.0"
 
 
 @pytest.mark.unit
